@@ -9,7 +9,11 @@ import {
 } from '@nestjs/common';
 import { CreatePostDto } from './dtos/create-post.dto';
 import { PostsService } from './posts.service';
-import { AuthGuard } from 'src/authentication/guards/authentication.guard';
+import {
+  AuthGuard,
+  type IUser,
+} from 'src/authentication/guards/authentication.guard';
+import { User } from 'src/common/decorators/user.decorator';
 
 @Controller('posts')
 export class PostsController {
@@ -17,8 +21,9 @@ export class PostsController {
 
   @UseGuards(AuthGuard)
   @Post()
-  async create(@Body() ceatePostDto: CreatePostDto) {
-    this.postsService.create(ceatePostDto);
+  async create(@Body() ceatePostDto: CreatePostDto, @User() user: IUser) {
+    console.log(user);
+    this.postsService.create(ceatePostDto, user);
   }
 
   @Get()

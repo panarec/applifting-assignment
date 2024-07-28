@@ -13,7 +13,10 @@ export class AuthenticationService {
     private jwtService: JwtService,
   ) {}
 
-  async signIn(username: string, pass: string): Promise<any> {
+  async signIn(
+    username: string,
+    pass: string,
+  ): Promise<{ access_token: string }> {
     // Of course, this is a simple example. In a real application, I would use a more secure way to store passwords.
     const user = await this.prismaService.user.findFirst({
       where: { name: username },

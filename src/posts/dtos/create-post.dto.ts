@@ -6,4 +6,7 @@ export class CreatePostDto {
 
   @IsString()
   content: string;
+
+  @IsString()
+  perex: string;
 }

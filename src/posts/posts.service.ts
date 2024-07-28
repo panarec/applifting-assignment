@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Post } from './interfaces/post.interface';
 import { PrismaService } from 'src/database/prisma.service';
+import { IUser } from 'src/authentication/guards/authentication.guard';
 
 @Injectable()
 export class PostsService {
@@ -8,11 +9,14 @@ export class PostsService {
 
   constructor(private readonly prismaService: PrismaService) {}
 
-  async create(post: Post) {
+  async create(post: Post, user: IUser) {
+    const { title, content, perex } = post;
     await this.prismaService.post.create({
       data: {
-        title: post.title,
-        content: post.content,
+        title,
+        content,
+        perex,
+        authorId: user.sub,
       },
     });
   }
