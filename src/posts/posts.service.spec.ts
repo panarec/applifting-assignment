@@ -1,13 +1,26 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { HttpException } from '@nestjs/common';
-import { PostsService } from './posts.service';
+import { HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
-import { IUser } from '../authentication/guards/authentication.guard';
+import { PostsService } from './posts.service';
+import { CreatePostDto } from './dtos/create-post.dto';
 import NotFoundError from '../exceptions/not-found.exception';
+import { Post } from '@prisma/client';
+import { IUser } from 'src/authentication/guards/authentication.guard';
 
 describe('PostsService', () => {
   let service: PostsService;
   let prismaService: PrismaService;
+  const user: IUser = {
+    sub: 1,
+    username: 'testuser',
+    exp: 123456,
+    iat: 123456,
+  };
+  const post: CreatePostDto = {
+    title: 'Test Post',
+    content: 'This is a test post',
+    perex: 'Test perex',
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -21,6 +34,7 @@ describe('PostsService', () => {
               update: jest.fn(),
               findMany: jest.fn(),
               findUnique: jest.fn(),
+              delete: jest.fn(),
             },
           },
         },
@@ -28,7 +42,7 @@ describe('PostsService', () => {
     }).compile();
 
     service = module.get<PostsService>(PostsService);
-    prismaService = module.get(PrismaService);
+    prismaService = module.get<PrismaService>(PrismaService);
   });
 
   afterEach(() => {
@@ -37,21 +51,15 @@ describe('PostsService', () => {
 
   describe('create', () => {
     it('should create a new post', async () => {
-      const post = {
-        title: 'Test Post',
-        content: 'Test Content',
-        perex: 'Test Perex',
-      };
-      const user: IUser = { sub: 1, username: 'test-user', iat: 1, exp: 1 };
-      const savedPost = {
+      const savedPost: Post = {
         id: 1,
         ...post,
         authorId: user.sub,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-
       jest.spyOn(prismaService.post, 'create').mockResolvedValue(savedPost);
+
       const result = await service.create(post, user);
 
       expect(prismaService.post.create).toHaveBeenCalledWith({
@@ -69,75 +77,79 @@ describe('PostsService', () => {
   describe('update', () => {
     it('should update an existing post', async () => {
       const id = 1;
-      const post = {
-        title: 'Updated Post',
-        content: 'Updated Content',
-        perex: 'Updated Perex',
-      };
-      const user: IUser = { sub: 1, username: 'test-user', iat: 1, exp: 1 };
-      const updatedPost = {
-        id: 1,
+
+      const existingPost: Post = {
+        id,
         ...post,
         authorId: user.sub,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-
-      jest.spyOn(prismaService.post, 'update').mockResolvedValue(updatedPost);
+      jest
+        .spyOn(prismaService.post, 'findUnique')
+        .mockResolvedValue(existingPost);
+      jest.spyOn(prismaService.post, 'update').mockResolvedValue(existingPost);
 
       const result = await service.update(id, post, user);
 
+      expect(prismaService.post.findUnique).toHaveBeenCalledWith({
+        where: { id },
+      });
       expect(prismaService.post.update).toHaveBeenCalledWith({
-        where: { id, authorId: user.sub },
+        where: { id },
         data: {
           title: post.title,
           content: post.content,
           perex: post.perex,
-          updatedAt: expect.any(Date),
         },
       });
-      expect(result).toEqual(updatedPost);
+      expect(result).toEqual(existingPost);
     });
 
-    it('should throw an HttpException if update fails', async () => {
+    it('should throw a NotFoundError if the post does not exist', async () => {
       const id = 1;
-      const post = {
-        title: 'Updated Post',
-        content: 'Updated Content',
-        perex: 'Updated Perex',
-      };
-      const user: IUser = { sub: 1, username: 'test-user', iat: 1, exp: 1 };
 
-      jest
-        .spyOn(prismaService.post, 'update')
-        .mockRejectedValue(new Error('Update failed'));
+      jest.spyOn(prismaService.post, 'findUnique').mockResolvedValue(null);
 
-      await expect(service.update(id, post, user)).rejects.toThrow(
-        HttpException,
+      await expect(service.update(id, post, user)).rejects.toThrowError(
+        new NotFoundError('Post', id.toString()),
       );
-      expect(prismaService.post.update).toHaveBeenCalledWith({
-        where: { id, authorId: user.sub },
-        data: {
-          title: post.title,
-          content: post.content,
-          perex: post.perex,
-          updatedAt: expect.any(Date),
-        },
-      });
+    });
+
+    it('should throw a HttpException if the user is not the author of the post', async () => {
+      const id = 1;
+
+      const existingPost: Post = {
+        id,
+        ...post,
+        authorId: 2,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      jest
+        .spyOn(prismaService.post, 'findUnique')
+        .mockResolvedValue(existingPost);
+
+      await expect(service.update(id, post, user)).rejects.toThrowError(
+        new HttpException(
+          'You are not allowed to update this post',
+          HttpStatus.FORBIDDEN,
+        ),
+      );
     });
   });
 
   describe('findAll', () => {
-    it('should return an array of posts', async () => {
-      const posts = [
+    it('should return all posts', async () => {
+      const posts: Post[] = [
         {
           id: 1,
-          title: 'Post 1',
-          content: 'Content 1',
-          perex: 'Perex 1',
+          title: 'Test Post 1',
+          authorId: 1,
           createdAt: new Date(),
           updatedAt: new Date(),
-          authorId: 1,
+          content: 'Test Content 1',
+          perex: 'Test Perex 1',
         },
       ];
       jest.spyOn(prismaService.post, 'findMany').mockResolvedValue(posts);
@@ -148,58 +160,123 @@ describe('PostsService', () => {
       expect(result).toEqual(posts);
     });
 
-    it('should throw an HttpException if findMany fails', async () => {
-      jest
-        .spyOn(prismaService.post, 'findMany')
-        .mockRejectedValue(new Error('Find many failed'));
+    it('should throw a HttpException if an error occurs', async () => {
+      jest.spyOn(prismaService.post, 'findMany').mockRejectedValue(new Error());
 
-      await expect(service.findAll()).rejects.toThrow(HttpException);
-      expect(prismaService.post.findMany).toHaveBeenCalled();
+      await expect(service.findAll()).rejects.toThrowError(
+        new HttpException(
+          'Something went wrong',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        ),
+      );
     });
   });
 
   describe('findOne', () => {
     it('should return a post by id', async () => {
       const id = 1;
-      const post = {
-        id: 1,
-        title: 'Post 1',
-        content: 'Content 1',
-        perex: 'Perex 1',
+      const savedPost: Post = {
+        id,
+        title: 'Test Post',
+        authorId: 1,
         createdAt: new Date(),
         updatedAt: new Date(),
-        authorId: 1,
+        content: 'Test Content',
+        perex: 'Test Perex',
       };
-      jest.spyOn(prismaService.post, 'findUnique').mockResolvedValue(post);
+      jest.spyOn(prismaService.post, 'findUnique').mockResolvedValue(savedPost);
 
       const result = await service.findOne(id);
 
       expect(prismaService.post.findUnique).toHaveBeenCalledWith({
         where: { id },
       });
-      expect(result).toEqual(post);
+      expect(result).toEqual(savedPost);
     });
 
-    it('should throw a NotFoundError if post is not found', async () => {
+    it('should throw a NotFoundError if the post does not exist', async () => {
       const id = 1;
       jest.spyOn(prismaService.post, 'findUnique').mockResolvedValue(null);
 
-      await expect(service.findOne(id)).rejects.toThrow(NotFoundError);
-      expect(prismaService.post.findUnique).toHaveBeenCalledWith({
-        where: { id },
-      });
+      await expect(service.findOne(id)).rejects.toThrowError(
+        new NotFoundError('Post', id.toString()),
+      );
     });
 
-    it('should throw an HttpException if findUnique fails', async () => {
+    it('should throw a HttpException if an error occurs', async () => {
       const id = 1;
       jest
         .spyOn(prismaService.post, 'findUnique')
-        .mockRejectedValue(new Error('Find unique failed'));
+        .mockRejectedValue(new Error());
 
-      await expect(service.findOne(id)).rejects.toThrow(HttpException);
+      await expect(service.findOne(id)).rejects.toThrowError(
+        new HttpException(
+          'Something went wrong',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        ),
+      );
+    });
+  });
+
+  describe('delete', () => {
+    it('should delete an existing post', async () => {
+      const id = 1;
+
+      const existingPost: Post = {
+        id,
+        title: 'Test Post',
+        authorId: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        content: 'Test Content',
+        perex: 'Test Perex',
+      };
+      jest
+        .spyOn(prismaService.post, 'findUnique')
+        .mockResolvedValue(existingPost);
+      jest.spyOn(prismaService.post, 'delete').mockResolvedValue(existingPost);
+
+      const result = await service.delete(id, user);
+
       expect(prismaService.post.findUnique).toHaveBeenCalledWith({
         where: { id },
       });
+      expect(prismaService.post.delete).toHaveBeenCalledWith({ where: { id } });
+      expect(result).toEqual(existingPost);
+    });
+
+    it('should throw a NotFoundError if the post does not exist', async () => {
+      const id = 1;
+
+      jest.spyOn(prismaService.post, 'findUnique').mockResolvedValue(null);
+
+      await expect(service.delete(id, user)).rejects.toThrowError(
+        new NotFoundError('Post', id.toString()),
+      );
+    });
+
+    it('should throw a HttpException if the user is not the author of the post', async () => {
+      const id = 1;
+
+      const existingPost: Post = {
+        id,
+        title: 'Test Post',
+        authorId: 2,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        content: 'Test Content',
+        perex: 'Test Perex',
+      };
+      jest
+        .spyOn(prismaService.post, 'findUnique')
+        .mockResolvedValue(existingPost);
+
+      await expect(service.delete(id, user)).rejects.toThrowError(
+        new HttpException(
+          'You are not allowed to delete this post',
+          HttpStatus.FORBIDDEN,
+        ),
+      );
     });
   });
 });

@@ -25,18 +25,32 @@ export class PostsService {
   async update(id: number, post: CreatePostDto, user: IUser) {
     const { title, content, perex } = post;
     try {
+      const post = await this.prismaService.post.findUnique({
+        where: { id },
+      });
+      if (post === null) {
+        throw new NotFoundError('Post', id.toString());
+      }
+      if (post.authorId !== user.sub) {
+        throw new HttpException(
+          'You are not allowed to update this post',
+          HttpStatus.FORBIDDEN,
+        );
+      }
       const updatedPost = await this.prismaService.post.update({
-        where: { id, authorId: user.sub },
+        where: { id },
         data: {
           title,
           content,
           perex,
-          updatedAt: new Date(),
         },
       });
       return updatedPost;
     } catch (error) {
       console.error(error);
+      if (error instanceof NotFoundError || error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         'Something went wrong',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -68,6 +82,35 @@ export class PostsService {
     } catch (error) {
       console.error(error);
       if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw new HttpException(
+        'Something went wrong',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+  async delete(id: number, user: IUser) {
+    try {
+      const post = await this.prismaService.post.findUnique({
+        where: { id },
+      });
+      if (post === null) {
+        throw new NotFoundError('Post', id.toString());
+      }
+      if (post.authorId !== user.sub) {
+        throw new HttpException(
+          'You are not allowed to delete this post',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+      await this.prismaService.post.delete({
+        where: { id },
+      });
+      return post;
+    } catch (error) {
+      console.error(error);
+      if (error instanceof NotFoundError || error instanceof HttpException) {
         throw error;
       }
       throw new HttpException(
