@@ -1,17 +1,17 @@
-import { Injectable } from '@nestjs/common';
-import { Post } from './interfaces/post.interface';
-import { PrismaService } from 'src/database/prisma.service';
-import { IUser } from 'src/authentication/guards/authentication.guard';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { PrismaService } from '../database/prisma.service';
+import { IUser } from '../authentication/guards/authentication.guard';
+import NotFoundError from '../exceptions/not-found.exception';
+import { CreatePostDto } from './dtos/create-post.dto';
+import { Post } from '@prisma/client';
 
 @Injectable()
 export class PostsService {
-  private readonly posts: Post[] = [];
-
   constructor(private readonly prismaService: PrismaService) {}
 
-  async create(post: Post, user: IUser) {
+  async create(post: CreatePostDto, user: IUser) {
     const { title, content, perex } = post;
-    await this.prismaService.post.create({
+    const savedPost = await this.prismaService.post.create({
       data: {
         title,
         content,
@@ -19,15 +19,61 @@ export class PostsService {
         authorId: user.sub,
       },
     });
+    return savedPost;
   }
 
-  async findAll(): Promise<Post[]> {
-    return this.prismaService.post.findMany();
+  async update(id: number, post: CreatePostDto, user: IUser) {
+    const { title, content, perex } = post;
+    try {
+      const updatedPost = await this.prismaService.post.update({
+        where: { id, authorId: user.sub },
+        data: {
+          title,
+          content,
+          perex,
+          updatedAt: new Date(),
+        },
+      });
+      return updatedPost;
+    } catch (error) {
+      console.error(error);
+      throw new HttpException(
+        'Something went wrong',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
-  async findOne(id: number): Promise<Post> {
-    return this.prismaService.post.findUnique({
-      where: { id },
-    });
+  async findAll(): Promise<Post[] | HttpException> {
+    try {
+      return await this.prismaService.post.findMany();
+    } catch (error) {
+      console.error(error);
+      throw new HttpException(
+        'Something went wrong',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async findOne(id: number): Promise<Post | HttpException> {
+    try {
+      const post = await this.prismaService.post.findUnique({
+        where: { id },
+      });
+      if (post === null) {
+        throw new NotFoundError('Post', id.toString());
+      }
+      return post;
+    } catch (error) {
+      console.error(error);
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      throw new HttpException(
+        'Something went wrong',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

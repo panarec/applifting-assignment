@@ -5,6 +5,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { CreatePostDto } from './dtos/create-post.dto';
@@ -12,8 +13,8 @@ import { PostsService } from './posts.service';
 import {
   AuthGuard,
   type IUser,
-} from 'src/authentication/guards/authentication.guard';
-import { User } from 'src/common/decorators/user.decorator';
+} from '../authentication/guards/authentication.guard';
+import { User } from '../common/decorators/user.decorator';
 
 @Controller('posts')
 export class PostsController {
@@ -22,8 +23,19 @@ export class PostsController {
   @UseGuards(AuthGuard)
   @Post()
   async create(@Body() ceatePostDto: CreatePostDto, @User() user: IUser) {
-    console.log(user);
-    this.postsService.create(ceatePostDto, user);
+    const post = await this.postsService.create(ceatePostDto, user);
+    return post;
+  }
+
+  @UseGuards(AuthGuard)
+  @Put(':id')
+  async update(
+    @Param('id', new ParseIntPipe()) id: number,
+    @Body() updatePostDto: CreatePostDto,
+    @User() user: IUser,
+  ) {
+    const post = await this.postsService.update(id, updatePostDto, user);
+    return post;
   }
 
   @Get()
