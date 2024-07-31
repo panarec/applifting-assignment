@@ -11,15 +11,23 @@ export class PostsService {
 
   async create(post: CreatePostDto, user: IUser) {
     const { title, content, perex } = post;
-    const savedPost = await this.prismaService.post.create({
-      data: {
-        title,
-        content,
-        perex,
-        authorId: user.sub,
-      },
-    });
-    return savedPost;
+    try {
+      const savedPost = await this.prismaService.post.create({
+        data: {
+          title,
+          content,
+          perex,
+          authorId: user.sub,
+        },
+      });
+      return savedPost;
+    } catch (error) {
+      console.error(error);
+      throw new HttpException(
+        'Something went wrong',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   async update(id: number, post: CreatePostDto, user: IUser) {
