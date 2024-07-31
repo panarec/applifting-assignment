@@ -1,8 +1,14 @@
 import { Comment as DbComment } from '@prisma/client';
 import { Comment as GqlComment } from 'src/graphql';
 
-export const parseCommentResponse = (comment: DbComment): GqlComment => {
-  const { id, createdAt, updatedAt, votes, userId } = comment;
+interface SavedComment extends DbComment {
+  _count: {
+    votes: number;
+  };
+}
+
+export const parseCommentResponse = (comment: SavedComment): GqlComment => {
+  const { id, createdAt, updatedAt, userId } = comment;
   return {
     authorId: userId,
     content: comment.content,
@@ -10,6 +16,6 @@ export const parseCommentResponse = (comment: DbComment): GqlComment => {
     id,
     postId: comment.postId,
     updatedAt: updatedAt.toString(),
-    votes,
+    votes: comment._count.votes,
   };
 };

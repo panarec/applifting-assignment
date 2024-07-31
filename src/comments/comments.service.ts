@@ -19,6 +19,7 @@ export class CommentsService {
         postId,
         userId: user.sub,
       },
+      include: { _count: { select: { votes: true } } },
     });
     const commentResponse = parseCommentResponse(savedComment);
 
@@ -45,6 +46,7 @@ export class CommentsService {
         data: {
           content,
         },
+        include: { _count: { select: { votes: true } } },
       });
 
       const commentResponse = parseCommentResponse(updatedComment);
@@ -64,7 +66,9 @@ export class CommentsService {
 
   async findAll(): Promise<Comment[] | HttpException> {
     try {
-      const savedComments = await this.prismaService.comment.findMany();
+      const savedComments = await this.prismaService.comment.findMany({
+        include: { _count: { select: { votes: true } } },
+      });
 
       const savedCommentsResponse = savedComments.map((comment) =>
         parseCommentResponse(comment),
@@ -84,12 +88,12 @@ export class CommentsService {
     try {
       const savedComment = await this.prismaService.comment.findUnique({
         where: { id },
+        include: { _count: { select: { votes: true } } },
       });
 
       if (savedComment === null) {
         throw new NotFoundError('Comment', id.toString());
       }
-
       const commentResponse = parseCommentResponse(savedComment);
 
       return commentResponse;
@@ -118,11 +122,67 @@ export class CommentsService {
       }
       const deletedComment = await this.prismaService.comment.delete({
         where: { id },
+        include: { _count: { select: { votes: true } } },
       });
 
       const deleteCommentResponse = parseCommentResponse(deletedComment);
 
       return deleteCommentResponse;
+    } catch (error) {
+      console.error(error);
+      if (error instanceof NotFoundError || error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        'Something went wrong',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async upVote(commentId: number, ipAddress: string): Promise<number> {
+    try {
+      const comment = await this.prismaService.comment.findUnique({
+        where: { id: commentId },
+      });
+      if (comment === null) {
+        throw new NotFoundError('Comment', commentId.toString());
+      }
+      const vote = await this.prismaService.vote.findFirst({
+        where: { commentId, ipAddress },
+      });
+      if (vote !== null) {
+        throw new HttpException(
+          'You have already voted for this comment',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const savedVote = await this.prismaService.vote.create({
+        data: {
+          commentId,
+          ipAddress,
+        },
+      });
+
+      return savedVote.id;
+    } catch (error) {
+      console.error(error);
+      if (error instanceof NotFoundError || error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        'Something went wrong',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async downVote(id: number, ipAddress: string): Promise<void> {
+    try {
+      await this.prismaService.vote.deleteMany({
+        where: { AND: [{ commentId: id }, { ipAddress: ipAddress }] },
+      });
     } catch (error) {
       console.error(error);
       if (error instanceof NotFoundError || error instanceof HttpException) {
