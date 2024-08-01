@@ -82,7 +82,7 @@ $ npx prisma migrate deploy
 
 GraphQL Playground for the NestJS Server is available here: http://localhost:3000/graphql
 
-Open up the example GraphQL queries and copy them to the GraphQL Playground. Some queries and mutations are secured by an auth guard. You have to acquire a JWT token from `login`. Add the accessToken followed to HTTP HEADERS in the playground and replace **YOURTOKEN** here:
+Some queries and mutations are secured by an auth guard. You have to acquire a JWT token from `login`. Add the accessToken followed to HTTP HEADERS in the playground and replace **YOURTOKEN** here:
 
 {
   "Authorization": "Bearer YOURTOKEN"
