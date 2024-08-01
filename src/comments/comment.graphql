@@ -1,36 +1,94 @@
 type Query {
+  """
+  Get all comments
+  """
   comments: [Comment!]!
+  """
+  Get a comment by its id
+  """
   comment(id: Int!): Comment!
 }
 
 type Mutation {
+  """
+  Create a new comment
+  """
   createComment(createCommentInput: CreateCommentInput): Comment
+  """
+  Update an existing comment
+  """
   updateComment(updateCommentInput: UpdateCommentInput): Comment
+  """
+  Delete a comment
+  """
   deleteComment(id: Int!): Comment
 }
 
+"""
+Comments that are associated with a post
+"""
 type Comment {
   id: Int!
+  """
+  The content of the comment
+  """
   content: String!
+  """
+  The author of the comment
+  """
   authorId: Int!
+  """
+  The post that the comment is associated with
+  """
   postId: Int!
+  """
+  The date the comment was created
+  """
   createdAt: String!
+  """
+  The date the comment was last updated
+  """
   updatedAt: String!
+  """
+  The number of votes the comment has
+  """
   votes: Int!
 }
 
+"""
+The input object that contains the data needed to create a comment
+"""
 input CreateCommentInput {
+  """
+  The content of the comment
+  """
   content: String!
+  """
+  The author of the comment
+  """
   postId: Int!
 }
 
+"""
+The input object that contains the data needed to update a comment
+"""
 input UpdateCommentInput {
+  """
+  The content of the comment
+  """
   content: String!
+  """
+  The id of the comment to update
+  """
   commentId: Int!
 }
 
+"""
+The input object that contains the data needed to delete a comment
+"""
 input DeleteCommentInput {
+  """
+  The id of the comment to delete
+  """
   commentId: Int!
 }
-
-
